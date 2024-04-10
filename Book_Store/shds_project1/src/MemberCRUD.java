@@ -70,40 +70,66 @@ public class MemberCRUD {
 
     static void processMenu(Connection conn, Scanner scanner) throws SQLException {
         while (true) {
-            System.out.println("1.개인정보확인 2.개인정보수정 3.구매내역확인 4.잔액추가 5.회원탈퇴 6.로그아웃");
+            System.out.println("1.마이페이지 2.책 구매 3.회원탈퇴 4.로그아웃");
             System.out.print("원하는 작업을 선택하세요: ");
-            int choice = scanner.nextInt();
+            int select = scanner.nextInt();
 
-            switch (choice) {
+            switch (select) {
                 case 1:
-                    if (loggedIn) {
-                        readData(conn, loggedInUserId);
-                    } else {
-                        System.out.println("로그인이 필요합니다.");
+                    while (true) {
+                        System.out.println("1.개인정보확인 2.개인정보수정 3.잔액조회 4.잔액충전 5.구매내역조회 6.관심목록조회 7.마이페이지 나가기");
+                        System.out.print("원하는 작업을 선택하세요: ");
+
+                        int choice = scanner.nextInt();
+                        switch (choice) {
+                            case 1:
+                                readData(conn, loggedInUserId);
+                                break;
+                            case 2:
+                                updateData(conn, scanner, loggedInUserId);
+                                break;
+                            case 3: // 잔액조회
+                                readBalance(conn, loggedInUserId);
+                                break;
+                            case 4: // 잔액 충전
+                                updateMoney(conn, scanner, loggedInUserId);
+                                break;
+                            case 5: //구매내역 조회
+                                executeQuery(conn, loggedInUserId);
+                                break;
+                            case 6: // 관심내역 조회
+                                displayFavoriteBooks(conn , loggedInUserId);
+                                break;
+                            case 7:
+                                break;
+                            default:
+                                System.out.println("올바른 메뉴를 선택하세요.");
+                        }
+                        if (choice == 7)
+                            break;
                     }
                     break;
                 case 2:
-                    updateData(conn, scanner, loggedInUserId);
+                    // 책 구매 기능 추가
+                    System.out.println("책을 구매합니다.");
                     break;
                 case 3:
-                    executeQuery(conn,  loggedInUserId);
+                    deleteData(conn, scanner, loggedInUserId);
                     break;
                 case 4:
-                    updateMoney(conn , scanner ,loggedInUserId);
-                    break;
-                case 5:
-                    deleteData(conn, scanner, loggedInUserId);
-                case 6:
                     loggedIn = false;
                     System.out.println("로그아웃 되었습니다.");
                     return;
                 default:
                     System.out.println("올바른 메뉴를 선택하세요.");
+                    break; // default case에서도 반드시 break를 추가해야 합니다.
             }
         }
     }
 
-    static void createData(Connection conn, Scanner scanner) throws SQLException {
+
+
+    public static void createData(Connection conn, Scanner scanner) throws SQLException {
         System.out.print("이름: ");
         String name = scanner.next();
         String id;
@@ -120,8 +146,17 @@ public class MemberCRUD {
 
         System.out.print("비밀번호: ");
         String password = scanner.next();
-        System.out.print("나이: ");
-        int age = scanner.nextInt(); // 수정
+        int age;
+        while (true) {
+            try {
+                System.out.print("나이: ");
+                age = Integer.parseInt(scanner.next());
+                break; // 입력이 올바른 경우 루프 종료
+            } catch (NumberFormatException e) {
+                System.out.println("올바른 형식이 아닙니다. 나이는 숫자로 입력하세요.");
+            }
+        }
+
         System.out.print("성별: ");
         String sex = scanner.next();
         System.out.print("이메일: ");
@@ -136,7 +171,7 @@ public class MemberCRUD {
             pstmt.setString(2, name);
             pstmt.setString(3, id);
             pstmt.setString(4, password);
-            pstmt.setInt(5, age); // 수정
+            pstmt.setInt(5, age);
             pstmt.setString(6, sex);
             pstmt.setString(7, email);
             pstmt.setInt(8, money);
@@ -212,11 +247,7 @@ public class MemberCRUD {
         }
     }
 
-    static void updateMoney(Connection conn, Scanner scanner, String userId) throws SQLException {
-        System.out.print("추가할 금액 입력:");
-        int plusMoney = scanner.nextInt();
-
-        // 현재 잔액을 조회하는 쿼리
+    static void readBalance(Connection conn, String userId) throws SQLException {
         String balanceQuery = "SELECT money FROM member WHERE id = ?";
         int currentBalance = 0;
 
@@ -225,29 +256,32 @@ public class MemberCRUD {
             try (ResultSet rs = balanceStmt.executeQuery()) {
                 if (rs.next()) {
                     currentBalance = rs.getInt("money");
+                    System.out.println("현재 잔액: " + currentBalance + "원");
+                } else {
+                    System.out.println("잔액 조회에 실패했습니다.");
                 }
             }
         }
+    }
+    static void updateMoney(Connection conn, Scanner scanner, String userId) throws SQLException {
+        System.out.print("추가할 금액 입력: ");
+        int plusMoney = scanner.nextInt();
 
-        // 잔액에 plusMoney를 추가하여 새로운 잔액을 계산
-        int newBalance = currentBalance + plusMoney;
-
-        // 새로운 잔액을 업데이트하는 쿼리
-        String updateQuery = "UPDATE member SET money = ? WHERE id = ?";
+        String updateQuery = "UPDATE member SET money = money + ? WHERE id = ?";
         try (PreparedStatement pstmt = conn.prepareStatement(updateQuery)) {
-            pstmt.setInt(1, newBalance);
+            pstmt.setInt(1, plusMoney);
             pstmt.setString(2, userId);
 
             int affectedRows = pstmt.executeUpdate();
             if (affectedRows > 0)
-                System.out.println("잔액이 " + plusMoney + "원 추가 " +  "되었습니다.");
+                System.out.println("잔액이 " + plusMoney + "원 충전되었습니다.");
             else
                 System.out.println("잔액 수정에 실패했습니다.");
         }
     }
 
     static void executeQuery(Connection conn, String memberId) throws SQLException {  // 구매내역 조회
-        String sql = "SELECT M.*, P.*, B.BOOK_ID, B.SUBJECT, B.PRICE, B.AUTHOR " +
+        String sql = "SELECT M.*, P.*, B.* " +
                 "FROM MEMBER M " +
                 "LEFT JOIN PURCHASE P ON M.ID = P.ID " +
                 "LEFT JOIN BOOK B ON B.BOOK_ID = P.BOOK_ID " +
@@ -278,7 +312,7 @@ public class MemberCRUD {
                 System.out.print("State: " + rs.getString("state") + "  ");
 
                 System.out.print("Title: " + rs.getString("subject") + "  ");
-                System.out.print("Price: " + rs.getDouble("price") + "  ");
+                System.out.print("Price: " + rs.getInt("price") + "  ");
                 System.out.println("Author: " + rs.getString("author") + "  ");
             }
 
@@ -288,6 +322,33 @@ public class MemberCRUD {
         }
     }
 
+    static void displayFavoriteBooks(Connection conn, String loggedInUserId) throws SQLException {
+        String sql = "SELECT * " +
+                "FROM Like_book L " +
+                "LEFT JOIN MEMBER M ON M.ID = L.ID " +
+                "JOIN book B ON B.book_id = L.book_id " +
+                "WHERE L.id = ?";
+
+        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, loggedInUserId);
+            ResultSet rs = pstmt.executeQuery();
+
+            boolean hasFavorites = false;
+
+            while (rs.next()) {
+                hasFavorites = true;
+                System.out.print("Book ID: " + rs.getString("book_id") + "  ");
+                System.out.print("Title: " + rs.getString("subject") + "  ");
+                System.out.print("Author: " + rs.getString("author") + "  ");
+                System.out.print("Price: " + rs.getInt("price") + "  ");
+                System.out.println();
+            }
+
+            if (!hasFavorites) {
+                System.out.println("관심목록이 없습니다.");
+            }
+        }
+    }
 
 
 
